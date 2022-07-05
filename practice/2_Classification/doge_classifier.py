@@ -18,6 +18,12 @@ from openvino.runtime import Core
 class InferenceEngineClassifier:
 
     def __init__(self, model_path, device='CPU', classes_path=None):
+
+        self.core = Core()
+        self.model = self.core.read_model(model=model_path)
+        self.exec_model = self.core.compile_model(model=self.model, device_name=device)
+        if classes_path:
+            self.classes = [line.rstrip('\n') for line in open(classes_path)]
         
         # Add code for Inference Engine initialization
         
@@ -27,16 +33,24 @@ class InferenceEngineClassifier:
         
         return
 
-    def get_top(self, prob, topN=1):
+    def get_top(self, prob, topN=10):
         result = []
-        
-        # Add code for getting top predictions
+
+        prob = prob.flatten()
+        for _ in range(topN):
+            n = np.argmax(prob)
+            result.append(self.classes[n])
+            prob[n] = 0
+
         
         return result
 
     def _prepare_image(self, image, h, w):
     
         # Add code for image preprocessing
+        image = cv2.resize(image, (w, h))
+        image = image.transpose((2, 0, 1))
+        image = np.expand_dims(image, axis=0)
         
         return image
 
@@ -44,6 +58,13 @@ class InferenceEngineClassifier:
         probabilities = None
         
         # Add code for image classification using Inference Engine
+        input_layer = self.exec_model.input(0)
+        output_layer = self.exec_model.output(0)
+
+        n, c, h, w = input_layer.shape
+        image = self._prepare_image(image, h,w)
+
+        probabilities = self.exec_model([image])[output_layer]
         
         return probabilities
 
@@ -71,14 +92,16 @@ def main():
     log.info("Start IE classification sample")
 
     # Create InferenceEngineClassifier object
+    model = InferenceEngineClassifier(args.model, args.device, args.classes)
     
     # Read image
-        
+    img = cv2.imread(args.input)
     # Classify image
-    
+    res = model.classify(img)
     # Get top 5 predictions
     
     # print result
+    print(model.get_top(res))
 
     return
 
